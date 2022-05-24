@@ -1,109 +1,274 @@
 #include <iostream>
 #include <string.h>
-#include "node.h"
-#include "list.h"
 
 using namespace std;
 
-int is_oper(char* a)
+
+#pragma region NODE
+struct node
 {
-    return strlen(a) == 1 && (a[0] == '+' || a[0] == '-' || a[0] == '*' || a[0] == '/');
+    char* val = nullptr;
+    int type = 0; // 0 - число; 2 - бинарная операция
+    node* left = nullptr;
+    node* right = nullptr;
+};
+
+void print_node(node* n, int tabs = 0)
+{
+    if (!n) return;
+
+    print_node(n->right, tabs + 1);
+
+    for (size_t i = 0; i < tabs; i++) cout << "\t";
+    cout << n->val << endl;
+
+    print_node(n->left, tabs + 1);
 }
 
-void zero_fill(char* s, int len)
+int get_weight(char* s)
 {
-    for (size_t i = 0; i < len; i++)
-        s[i] = 0;
-}
-
-// выражение в виде строки переводим в список из node;
-// каждый токен в строке - отдельный node
-list* get_list_of_nodes_by_mathexpr(const char* expr)
-{
-    int len = strlen(expr);
-
-    list* nodes = nullptr;
-
-    char* temp = new char[len + 1];
-    zero_fill(temp, len + 1);
-    int k = 0;
-
-    for (size_t i = 0; i < len; i++)
-    {
-        temp[k] = expr[i];
-
-        if (expr[i + 1] == ' ' || i + 1 == len)
-        {
-            node* n = new node;
-            n->is_oper = is_oper(temp);
-            temp[k + 1] = 0;
-            n->val = strdup(temp);
-            add_to_list(nodes, n);
-
-            zero_fill(temp, len);
-            k = 0;
-            i++;
-            continue;
-        }
-    }
-
-    return nodes;
-}
-
-// из списка node в единое дерево
-node* get_tree_from_postfix(list* nodes)
-{
-    int i = 0;
-    int len = get_list_len(nodes);
+    // 2 - бинарная операция; 0 - число
     
-    while (len > 1) // list length не может быть = 2 (т.к. в выражении должны быть 2 числа и бинарная операция)
+    if (!strcmp(s, "*")) return 2;
+    if (!strcmp(s, "/")) return 2;
+    if (!strcmp(s, "+")) return 1;
+    if (!strcmp(s, "-")) return 1;
+
+    return 0;
+}
+
+void print_infix(node* n, int weight = 0)
+{
+    if (!n) return;
+
+    int cur_weight = get_weight(n->val);
+
+    if (weight > cur_weight && n->left)
+        cout << "(";
+
+    if (n->left)
+        print_infix(n->left, cur_weight);
+
+    cout << n->val;
+
+    if (n->right)
+        print_infix(n->right, cur_weight);
+
+    if (weight > cur_weight &&  n->right)
+        cout << ")";
+}
+
+// postfix - то же самое, что и RPN (обратная польская запись)
+void print_postfix(node* n)
+{
+    if (!n) return;
+
+    print_postfix(n->left);
+    print_postfix(n->right);
+    cout << n->val << " ";
+}
+#pragma endregion
+
+
+#pragma region LIST
+struct list
+{
+    list* next = nullptr;
+    node* val = nullptr;
+};
+
+void add_to_list(list*& l, node* n)
+{
+    list* new_el = new list;
+    new_el->val = n;
+
+    if (!l)
     {
-        if (i + 2 >= len) i = 0;
-
-        node* n0 = list_get(nodes, i);
-        node* n1 = list_get(nodes, i + 1);
-        node* n2 = list_get(nodes, i + 2);
-
-        if (n2->is_oper)
-        {
-            n2->left = n0;
-            n2->right = n1;
-
-            list_remove_at(nodes, i + 1);
-            list_remove_at(nodes, i);
-
-            i -= 2;
-        }
-
-        i++;
-        
-
-        for (size_t i = 0; i < get_list_len(nodes); i++)
-        {
-            cout << "[" << i << "]: " << list_get(nodes, i)->val << endl;
-        }
-        cout << endl;
+        l = new_el;
+        return;
     }
 
-    return nodes->x;
+    list* cur = l;
+
+    while (cur->next)
+        cur = cur->next;
+    
+    cur->next = new_el;
 }
+
+int get_list_len(list* l)
+{
+    int len = 0;
+    
+    while (l)
+    {
+        l = l->next;
+        len++;
+    }
+    
+    return len;
+}
+
+void print_list(list* l)
+{
+    while (l)
+    {
+        cout << l->val->val << endl;
+        l = l->next;
+    }
+}
+#pragma endregion
+
+
+#pragma region STACK
+struct stack
+{
+    stack* next = nullptr;
+    node* val = nullptr;
+};
+
+void push(stack*& s, node* val)
+{
+    stack* new_el = new stack;
+    new_el->val = val;
+
+    if (!s)
+    {
+        s = new_el;
+        return;
+    }
+
+    new_el->next = s;
+    s = new_el;
+}
+
+node* pop(stack*& s)
+{
+    if (!s) return nullptr;
+
+    stack* top = s;
+    s = s->next;
+
+    return top->val;
+}
+
+void print_stack(stack* st)
+{
+    while (st)
+    {
+        cout << st->val << endl;
+        st = st->next;
+    }
+}
+#pragma endregion
+
+
+#pragma region TREE_BY_EXPRESSION
+int get_token_type(char* s)
+{
+    // 2 - бинарная операция; 0 - число
+    
+    if (!strcmp(s, "*")) return 2;
+    if (!strcmp(s, "/")) return 2;
+    if (!strcmp(s, "+")) return 2;
+    if (!strcmp(s, "-")) return 2;
+
+    return 0;
+}
+
+list* get_tokens(const char* expr)
+{
+    // копируем строку
+    int expr_len = strlen(expr);
+    char* expr_copy = new char[expr_len + 1];
+
+    for (size_t i = 0; i < expr_len; i++)
+        expr_copy[i] = expr[i];
+    
+    expr_copy[expr_len] = 0;
+    
+
+    // разбиваем строку на токены (подстроки) и создаем список нод
+    char* cont = nullptr;
+    list* tokens = nullptr; // список нод
+
+    while (char* part = strtok_r(expr_copy, " ", &cont))
+    {
+        expr_copy = nullptr;
+
+        node* n = new node;
+        n->val = strdup(part);
+        n->type = get_token_type(part);
+
+        add_to_list(tokens, n);
+    }
+
+    list* tokens_copy = tokens;
+    
+    return tokens;
+}
+
+node* get_tree(const char* expr)
+{
+    // получаем токены (подстроки "2", "+" и т.д.)
+    list* tokens = get_tokens(expr);
+    list* tokens_copy = tokens; // для очищения помяти
+
+    stack* st = nullptr;
+
+    int i = get_list_len(tokens);
+
+    while (i > 0 || st->next)
+    {
+        node* n = tokens->val;
+
+        if (n->type == 0)
+        {
+            push(st, n);
+        }
+        else if (n->type == 2)
+        {
+            node* nr = pop(st);
+            node* nl = pop(st);
+
+            n->left = nl;
+            n->right = nr;
+
+            push(st, n);
+        }
+
+        tokens = tokens->next;
+        i--;
+    }
+
+
+
+    return pop(st);
+}
+#pragma endregion
+
 
 int main()
 {
-    const char* expression = "2 3 - 3 1 4 * + +";
+    const char* expression = "2 3 - 3 1 4 * + *";
 
-    list* nodes = get_list_of_nodes_by_mathexpr(expression);
-        
+    // строим дерево по токенам
+    node* tree = get_tree(expression);
 
-    for (size_t i = 0; i < get_list_len(nodes); i++)
-    {
-        cout << "[" << i << "]: " << list_get(nodes, i)->val << endl;
-    }
+    // выводим дерево
+    cout << "tree:" << endl;
+    print_node(tree);
     cout << endl;
-    
-    node* tree = get_tree_from_postfix(nodes);
 
-    print_as_tree(tree);
+    // infix
+    cout << endl << "infix: ";
+    print_infix(tree);
+    cout << endl;
+
+    // postfix
+    cout << endl << "postfix: ";
+    print_postfix(tree);
+    cout << endl;
 
     return 0;
 }
